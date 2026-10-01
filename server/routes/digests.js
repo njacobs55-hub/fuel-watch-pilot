@@ -26,7 +26,17 @@ function renderDigest(d) {
     : "";
 
   const byTypeRows = Object.entries(d.byType)
-    .map(([type, t]) => `<li>${type}: ${t.count} session${t.count === 1 ? "" : "s"}, ${Math.round(t.durationMin)} min, ${t.distanceKm}km</li>`)
+    .map(([type, t]) => {
+      // Heart rate / calories only show up if at least one activity of
+      // this type actually reported them — not every device or activity
+      // type does, so these are left off entirely rather than shown as
+      // a misleading "0" or "N/A".
+      const extras = [
+        t.avgHeartRate != null ? `avg HR ${t.avgHeartRate}` : null,
+        t.caloriesTotal != null ? `${t.caloriesTotal} cal` : null,
+      ].filter(Boolean).join(", ");
+      return `<li>${type}: ${t.count} session${t.count === 1 ? "" : "s"}, ${Math.round(t.durationMin)} min, ${t.distanceKm}km${extras ? ", " + extras : ""}</li>`;
+    })
     .join("");
 
   const flagRows = d.flags.length
