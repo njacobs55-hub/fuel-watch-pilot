@@ -6,19 +6,42 @@
 // plain arrays of activities, independent of Strava or the database.
 
 // Groups activities by Strava's "type" field (Run, Ride, Swim, etc.) and
-// sums duration/distance per type — useful when a client cross-trains.
+// sums duration/distance/calories, and averages heart rate, per type —
+// useful when a client cross-trains.
 function summariseByType(activities) {
   const byType = {};
   for (const a of activities) {
-    if (!byType[a.type]) byType[a.type] = { count: 0, durationMin: 0, distanceKm: 0 };
-    byType[a.type].count += 1;
-    byType[a.type].durationMin += a.durationMin;
-    byType[a.type].distanceKm += a.distanceKm;
+    if (!byType[a.type]) {
+      byType[a.type] = {
+        count: 0, durationMin: 0, distanceKm: 0, caloriesTotal: 0,
+        // Heart rate and calories aren't on every activity — not every
+        // device reports them, and some activity types never have a
+        // meaningful value. Tracked as a running sum + a count of how
+        // many activities actually had the field, so the average is
+        // only taken across activities that genuinely reported it,
+        // rather than letting missing values silently drag it down.
+        hrSum: 0, hrCount: 0, caloriesCount: 0,
+      };
+    }
+    const t = byType[a.type];
+    t.count += 1;
+    t.durationMin += a.durationMin;
+    t.distanceKm += a.distanceKm;
+    if (a.avgHeartRate != null) { t.hrSum += a.avgHeartRate; t.hrCount += 1; }
+    if (a.calories != null) { t.caloriesTotal += a.calories; t.caloriesCount += 1; }
   }
   // Round distance after summing, not per-activity, to avoid compounding
-  // rounding error across a week of sessions.
+  // rounding error across a week of sessions. Compute the final avg HR
+  // here too, then drop the running-sum fields — callers only need the
+  // final numbers, not the bookkeeping used to get there.
   for (const type in byType) {
-    byType[type].distanceKm = Math.round(byType[type].distanceKm * 10) / 10;
+    const t = byType[type];
+    t.distanceKm = Math.round(t.distanceKm * 10) / 10;
+    t.avgHeartRate = t.hrCount > 0 ? Math.round(t.hrSum / t.hrCount) : null;
+    t.caloriesTotal = t.caloriesCount > 0 ? Math.round(t.caloriesTotal) : null;
+    delete t.hrSum;
+    delete t.hrCount;
+    delete t.caloriesCount;
   }
   return byType;
 }
